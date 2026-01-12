@@ -1,0 +1,46 @@
+#!/bin/bash
+
+[ -z "$DIRVER_" ] && { echo "Use the driver.sh script"; exit 1;}
+
+input=$1
+halo=$2
+xdim=$3
+ydim=$4
+zdim=$5
+iter_count=$6
+layout_file=$7
+xdsl_ver=$8
+target=$9
+chunks=${10:-1}
+
+[ -z "$input" ] && { echo "input file is required"; exit 0; }
+half_halo=$((halo / 2))
+x_pad=$((xdim - half_halo))
+y_pad=$((ydim - half_halo))
+z_pad=$((zdim - half_halo))
+
+x_no_halo=$((xdim - halo))
+y_no_halo=$((ydim - halo))
+z_no_halo=$((zdim - halo))
+
+preproc() {
+    sed "
+    s/#x_dim_pad/$x_pad/g;
+    s/#x_dim/$x_no_halo/g;
+    s/#y_dim_pad/$y_pad/g;
+    s/#y_dim/$y_no_halo/g;
+    s/#z_dim_pad/$z_pad/g;
+    s/#z_dim/$z_no_halo/g;
+    s/#iter_count/$iter_count/g;
+    "  "$1"
+}
+
+if [ "$target" = cpu ]; then
+    preproc "$input" | ./cpu_pipeline.sh
+else
+
+    [ "$target" -eq 3 ] && wse_arg=--wse3
+
+    # shellcheck disable=SC2086 # wse_arg can't be quoted
+    preproc "$input" | ./pipeline.sh -t --slices="$x_no_halo,$y_no_halo" --chunks="$chunks" --layout="$layout_file" --xdsl-ver="$xdsl_ver" $wse_arg
+fi

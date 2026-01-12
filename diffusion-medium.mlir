@@ -1,0 +1,153 @@
+builtin.module {
+  func.func @diffusion_medium(%u_vec0 : !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>, %u_vec1 : !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>, %timers : !llvm.ptr) {
+    %0 = func.call @timer_start() : () -> f64
+    %time_m = arith.constant 0 : index
+    %time_M = arith.constant 100000 : index
+    %1 = arith.constant 1 : index
+    %2 = arith.addi %time_M, %1 : index
+    %step = arith.constant 1 : index
+    %3, %4 = scf.for %time = %time_m to %2 step %step iter_args(%u_t0 = %u_vec0, %u_t1 = %u_vec1) -> (!stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>, !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>) {
+      %u_t0_temp = stencil.load %u_t0 : !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32> -> !stencil.temp<?x?x?xf32>
+      %u_t1_temp = stencil.apply(%u_t0_blk = %u_t0_temp : !stencil.temp<?x?x?xf32>) -> (!stencil.temp<?x?x?xf32>) {
+        %dt = arith.constant 1.297478e-08 : f32
+        %5 = arith.constant -1 : i64
+        %6 = "math.fpowi"(%dt, %5) : (f32, i64) -> f32
+        %7 = stencil.access %u_t0_blk[0, 0, 0] : !stencil.temp<?x?x?xf32>
+        %8 = arith.mulf %6, %7 : f32
+        %9 = arith.constant 1.333333e+00 : f32
+        %h_x = arith.constant 4.040404e-03 : f32
+        %10 = arith.constant -2 : i64
+        %11 = "math.fpowi"(%h_x, %10) : (f32, i64) -> f32
+        %12 = stencil.access %u_t0_blk[-1, 0, 0] : !stencil.temp<?x?x?xf32>
+        %13 = arith.mulf %9, %11 : f32
+        %14 = arith.mulf %13, %12 : f32
+        %15 = arith.constant 1.333333e+00 : f32
+        %h_x_1 = arith.constant 4.040404e-03 : f32
+        %16 = arith.constant -2 : i64
+        %17 = "math.fpowi"(%h_x_1, %16) : (f32, i64) -> f32
+        %18 = stencil.access %u_t0_blk[1, 0, 0] : !stencil.temp<?x?x?xf32>
+        %19 = arith.mulf %15, %17 : f32
+        %20 = arith.mulf %19, %18 : f32
+        %21 = arith.constant -2.500000e+00 : f32
+        %h_x_2 = arith.constant 4.040404e-03 : f32
+        %22 = arith.constant -2 : i64
+        %23 = "math.fpowi"(%h_x_2, %22) : (f32, i64) -> f32
+        %24 = stencil.access %u_t0_blk[0, 0, 0] : !stencil.temp<?x?x?xf32>
+        %25 = arith.mulf %21, %23 : f32
+        %26 = arith.mulf %25, %24 : f32
+        %27 = arith.constant -8.333333e-02 : f32
+        %h_x_3 = arith.constant 4.040404e-03 : f32
+        %28 = arith.constant -2 : i64
+        %29 = "math.fpowi"(%h_x_3, %28) : (f32, i64) -> f32
+        %30 = stencil.access %u_t0_blk[-2, 0, 0] : !stencil.temp<?x?x?xf32>
+        %31 = arith.mulf %27, %29 : f32
+        %32 = arith.mulf %31, %30 : f32
+        %33 = arith.constant -8.333333e-02 : f32
+        %h_x_4 = arith.constant 4.040404e-03 : f32
+        %34 = arith.constant -2 : i64
+        %35 = "math.fpowi"(%h_x_4, %34) : (f32, i64) -> f32
+        %36 = stencil.access %u_t0_blk[2, 0, 0] : !stencil.temp<?x?x?xf32>
+        %37 = arith.mulf %33, %35 : f32
+        %38 = arith.mulf %37, %36 : f32
+        %39 = arith.addf %14, %20 : f32
+        %40 = arith.addf %39, %26 : f32
+        %41 = arith.addf %40, %32 : f32
+        %42 = arith.addf %41, %38 : f32
+        %43 = arith.constant 1.333333e+00 : f32
+        %h_y = arith.constant 4.040404e-03 : f32
+        %44 = arith.constant -2 : i64
+        %45 = "math.fpowi"(%h_y, %44) : (f32, i64) -> f32
+        %46 = stencil.access %u_t0_blk[0, -1, 0] : !stencil.temp<?x?x?xf32>
+        %47 = arith.mulf %43, %45 : f32
+        %48 = arith.mulf %47, %46 : f32
+        %49 = arith.constant 1.333333e+00 : f32
+        %h_y_1 = arith.constant 4.040404e-03 : f32
+        %50 = arith.constant -2 : i64
+        %51 = "math.fpowi"(%h_y_1, %50) : (f32, i64) -> f32
+        %52 = stencil.access %u_t0_blk[0, 1, 0] : !stencil.temp<?x?x?xf32>
+        %53 = arith.mulf %49, %51 : f32
+        %54 = arith.mulf %53, %52 : f32
+        %55 = arith.constant -2.500000e+00 : f32
+        %h_y_2 = arith.constant 4.040404e-03 : f32
+        %56 = arith.constant -2 : i64
+        %57 = "math.fpowi"(%h_y_2, %56) : (f32, i64) -> f32
+        %58 = stencil.access %u_t0_blk[0, 0, 0] : !stencil.temp<?x?x?xf32>
+        %59 = arith.mulf %55, %57 : f32
+        %60 = arith.mulf %59, %58 : f32
+        %61 = arith.constant -8.333333e-02 : f32
+        %h_y_3 = arith.constant 4.040404e-03 : f32
+        %62 = arith.constant -2 : i64
+        %63 = "math.fpowi"(%h_y_3, %62) : (f32, i64) -> f32
+        %64 = stencil.access %u_t0_blk[0, -2, 0] : !stencil.temp<?x?x?xf32>
+        %65 = arith.mulf %61, %63 : f32
+        %66 = arith.mulf %65, %64 : f32
+        %67 = arith.constant -8.333333e-02 : f32
+        %h_y_4 = arith.constant 4.040404e-03 : f32
+        %68 = arith.constant -2 : i64
+        %69 = "math.fpowi"(%h_y_4, %68) : (f32, i64) -> f32
+        %70 = stencil.access %u_t0_blk[0, 2, 0] : !stencil.temp<?x?x?xf32>
+        %71 = arith.mulf %67, %69 : f32
+        %72 = arith.mulf %71, %70 : f32
+        %73 = arith.addf %48, %54 : f32
+        %74 = arith.addf %73, %60 : f32
+        %75 = arith.addf %74, %66 : f32
+        %76 = arith.addf %75, %72 : f32
+        %77 = arith.constant 1.333333e+00 : f32
+        %h_z = arith.constant 2.861230e-03 : f32
+        %78 = arith.constant -2 : i64
+        %79 = "math.fpowi"(%h_z, %78) : (f32, i64) -> f32
+        %80 = stencil.access %u_t0_blk[0, 0, -1] : !stencil.temp<?x?x?xf32>
+        %81 = arith.mulf %77, %79 : f32
+        %82 = arith.mulf %81, %80 : f32
+        %83 = arith.constant 1.333333e+00 : f32
+        %h_z_1 = arith.constant 2.861230e-03 : f32
+        %84 = arith.constant -2 : i64
+        %85 = "math.fpowi"(%h_z_1, %84) : (f32, i64) -> f32
+        %86 = stencil.access %u_t0_blk[0, 0, 1] : !stencil.temp<?x?x?xf32>
+        %87 = arith.mulf %83, %85 : f32
+        %88 = arith.mulf %87, %86 : f32
+        %89 = arith.constant -2.500000e+00 : f32
+        %h_z_2 = arith.constant 2.861230e-03 : f32
+        %90 = arith.constant -2 : i64
+        %91 = "math.fpowi"(%h_z_2, %90) : (f32, i64) -> f32
+        %92 = stencil.access %u_t0_blk[0, 0, 0] : !stencil.temp<?x?x?xf32>
+        %93 = arith.mulf %89, %91 : f32
+        %94 = arith.mulf %93, %92 : f32
+        %95 = arith.constant -8.333333e-02 : f32
+        %h_z_3 = arith.constant 2.861230e-03 : f32
+        %96 = arith.constant -2 : i64
+        %97 = "math.fpowi"(%h_z_3, %96) : (f32, i64) -> f32
+        %98 = stencil.access %u_t0_blk[0, 0, -2] : !stencil.temp<?x?x?xf32>
+        %99 = arith.mulf %95, %97 : f32
+        %100 = arith.mulf %99, %98 : f32
+        %101 = arith.constant -8.333333e-02 : f32
+        %h_z_4 = arith.constant 2.861230e-03 : f32
+        %102 = arith.constant -2 : i64
+        %103 = "math.fpowi"(%h_z_4, %102) : (f32, i64) -> f32
+        %104 = stencil.access %u_t0_blk[0, 0, 2] : !stencil.temp<?x?x?xf32>
+        %105 = arith.mulf %101, %103 : f32
+        %106 = arith.mulf %105, %104 : f32
+        %107 = arith.addf %82, %88 : f32
+        %108 = arith.addf %107, %94 : f32
+        %109 = arith.addf %108, %100 : f32
+        %110 = arith.addf %109, %106 : f32
+        %111 = arith.addf %42, %76 : f32
+        %112 = arith.addf %111, %110 : f32
+        %a = arith.constant 9.000000e-01 : f32
+        %113 = arith.mulf %112, %a : f32
+        %114 = arith.addf %8, %113 : f32
+        %dt_1 = arith.constant 1.297478e-08 : f32
+        %115 = arith.mulf %114, %dt_1 : f32
+        stencil.return %115 : f32
+      }
+      stencil.store %u_t1_temp to %u_t1(<[0, 0, 0], [496, 496, 700]>) : !stencil.temp<?x?x?xf32> to !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>
+      %u_t1_temp_1 = stencil.load %u_t1 : !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32> -> !stencil.temp<?x?x?xf32>
+      scf.yield %u_t1, %u_t0 : !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>, !stencil.field<[-4,500]x[-4,500]x[-4,704]xf32>
+    }
+    %5 = func.call @timer_end(%0) : (f64) -> f64
+    "llvm.store"(%5, %timers) <{"ordering" = 0 : i64}> : (f64, !llvm.ptr) -> ()
+    func.return
+  }
+  func.func private @timer_start() -> f64
+  func.func private @timer_end(f64) -> f64
+}
