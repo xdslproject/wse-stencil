@@ -1,11 +1,11 @@
 __pycache__/
 *.pyc
+*.csl
 !oned_exch.csl       
 !routes.csl         
 !stencil_comms.csl 
 !switches.csl     
 !util.csl        
-*.csl
 sim*.json
 sim.log
 log_times*

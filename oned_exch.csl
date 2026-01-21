@@ -1,0 +1,121 @@
+// Colors
+param channel: color;
+
+// Task IDs
+param dataFin_task_id: local_task_id;
+
+param pattern: u16;
+param queueId: u16;
+param dir: direction;
+param senderCount: u16;
+param patternId: u16;
+
+param callback: task () void;
+param is_activate_action: bool;
+param ctrlCallback: task () void;
+
+param pos: i16;
+param chunkSize: u16;
+const neighbours = if (@is_arch("wse2")) pattern else (pattern-1);
+var coeffs: [neighbours]f32 = initCoeffs();
+const oq_offset = if (@is_arch("wse3")) 4 else 0;
+const outprops = if (@is_arch("wse3")) .{ .async = true, .ut_id = @get_ut_id(queueId) } else .{ .async = true };
+
+param buffer: *[4, neighbours, chunkSize]f32;
+
+const switches = @import_module("switches.csl");
+
+fn initCoeffs() [neighbours]f32 {
+  var result = @constants([neighbours]f32, 1.0);
+
+  if (@is_arch("wse2")) {
+  //  if (pos > 0) {
+    result[patternId] = 0.0;
+  //  }
+  }
+  return result;
+}
+
+fn setCoeffs(coefficients: *const [neighbours]f32) void {
+  if (@is_arch("wse2")) {
+    var idx: u16 = 0;
+    while (idx < pattern) : (idx += 1) {
+      if (patternId < idx) {
+        coeffs[idx] = coefficients.*[(patternId + pattern) - idx];
+      } else {
+        coeffs[idx] = coefficients.*[patternId - idx];
+      }
+    }
+  } else {
+    var idx: u16 = 0;
+    while (idx < pattern-1) : (idx += 1) {
+      coeffs[idx] = coefficients.*[patternId - idx - 1 + (if (patternId <= idx) pattern-1 else 0)];
+    }
+  }
+}
+
+comptime {
+  if (@is_arch("wse3")) {
+    @initialize_queue(@get_input_queue(4 + queueId), .{ .color = channel });
+    @initialize_queue(@get_output_queue(oq_offset + queueId), .{ .color = channel });
+  }
+}
+
+// Put the PE in receive mode to fetch a single chunk of elements (ARGH! from multiple senders from the same direction!).  Once the
+// (asynchronous) receive operation completes, trigger the callback function.
+fn recvMode() void {
+  const buffDsd = @get_dsd(mem4d_dsd, .{
+    .tensor_access = |i,j|{senderCount, chunkSize} -> buffer[pos, i, j]
+  });
+
+  const fabInDsd = @get_dsd(fabin_dsd, .{
+    .fabric_color = channel,
+    .input_queue = @get_input_queue(4 + queueId),
+    .extent = senderCount * chunkSize,
+    .simd_mode = .{ .simd_32_or_64 = true }
+  });
+
+  const constDsd = @get_dsd(mem4d_dsd, .{
+    .tensor_access = |i,j|{senderCount, chunkSize} -> coeffs[i]
+  });
+  const props = if (is_activate_action) .{ .async = true, .activate = callback } else .{ .async = true, .unblock = callback };
+  @fmuls(buffDsd, fabInDsd, constDsd, props);
+}
+
+// The following arrays define values for control wavelets, which update the
+// switch position at the recipient PEs.
+const ctrl0 = [2]u32 { comptime switches.ctrl(switches.firstSwitchCommands(pattern)), comptime switches.ctrl(switches.secondSwitchCommands()) };
+
+// This function is activated when we've finished (asynchronously) sending the
+// `chunkSize` data elements, so now it's time to send the control
+// wavelets.
+task dataFinTask() void {
+  const fabOutCtrlDsd = @get_dsd(fabout_dsd, .{
+    .extent = 2,
+    .control = true,
+    .fabric_color = channel,
+    .output_queue = @get_output_queue(oq_offset + queueId),
+    .simd_mode = .{ .simd_64 = true }
+  });
+
+  const ctrlDsd = @get_dsd(mem1d_dsd, .{
+    .tensor_access = |i|{2} -> ctrl0[i]
+  });
+
+  @mov32(fabOutCtrlDsd, ctrlDsd, @concat_structs(outprops, if (is_activate_action) .{ .activate = ctrlCallback } else .{ .unblock = ctrlCallback }));
+}
+
+comptime {
+  @bind_local_task(dataFinTask, dataFin_task_id);
+}
+
+fn send(sendBuf: mem1d_dsd) void {
+  const fabOutDataDsd = @get_dsd(fabout_dsd, .{
+    .extent = chunkSize,
+    .fabric_color = channel,
+    .output_queue = @get_output_queue(oq_offset + queueId),
+    .simd_mode = .{ .simd_32_or_64 = true }
+  });
+
+  @fmovs(fabOutDataDsd, sendBuf, @concat_structs(outprops, .{ .activate = dataFin_task_id }));
+}

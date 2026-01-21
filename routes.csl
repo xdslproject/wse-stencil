@@ -1,0 +1,173 @@
+const directions = @import_module("<directions>");
+const math = @import_module("<math>");
+
+param pattern: u16;
+param peWidth: u16;
+param peHeight: u16;
+
+fn initialSwitchPosition(pattFirst: bool, pattLast: bool) u16 {
+  if (pattern == 2) {
+    if (pattFirst) {
+      return 0;
+    }
+    return 2;
+  }
+  if (pattFirst) {
+    return 1;
+  }
+  if (pattLast) {
+    return 3;
+  }
+  return 0;
+}
+
+fn computeTxDir(dir: direction, isLast: bool) comptime_struct {
+  if (!isLast) {
+    return .{ dir, RAMP };
+  }
+  return .{ RAMP };
+}
+
+// The route when using a single neighbor is quite different from the route for
+// non-unit neighbors.  The next two functions compute routes for these two
+// cases.
+fn twoPatternRoute(dir: direction, pattFirst: bool, pattLast: bool,
+    isLast: bool) comptime_struct {
+  return .{
+    .routes= .{
+        .rx = .{ RAMP },
+        .tx = if (@is_arch("wse2")) computeTxDir(dir, isLast) else (if (isLast) .{ } else .{ dir }),
+    },
+    .switches=.{
+        .pos1 = .{ .tx = RAMP },
+        .pos2 = .{ .rx = directions.flip(dir) },
+        .ring_mode = true,
+        .current_switch_pos = initialSwitchPosition(pattFirst, pattLast),
+        .pop_mode = .{ .always_pop = true },
+    },
+  };
+}
+
+fn genericRoute(dir: direction, notNeedsPos3: bool, pattFirst: bool,
+    pattLast: bool, isLast: bool) comptime_struct {
+  // The first `pattern - 1` PEs always forward, unless they're at the edge.
+  const baseRoute: comptime_struct = .{
+    .routes= .{
+        .rx = .{ directions.flip(dir) },
+        .tx = computeTxDir(dir, isLast),
+    },
+    .switches=.{
+        .pos1 = if (@is_arch("wse2")) .{ .rx = RAMP } else .{ .rx = RAMP,  .tx = dir },
+        .pos2 = .{ .tx = RAMP },
+        .ring_mode = true,
+        .pop_mode = .{ .always_pop = true },
+    }
+  };
+
+  if (notNeedsPos3) {
+    return baseRoute;
+  }
+
+  const pos3Route: comptime_struct = .{
+    .routes= .{
+        .rx = .{ directions.flip(dir) },
+        .tx = computeTxDir(dir, isLast),
+    },
+    .switches=.{
+        .pos1 = if (@is_arch("wse2")) .{ .rx = RAMP } else .{ .rx = RAMP, .tx = if (isLast) .{} else dir },
+        .pos2 = .{ .tx = RAMP },
+        .pos3 = .{ .rx = directions.flip(dir) },
+        .ring_mode = true,
+        .current_switch_pos = initialSwitchPosition(pattFirst, pattLast),
+        .pop_mode = .{ .always_pop = true },
+    }
+  };
+
+  return pos3Route;
+}
+
+// This is the top-level function for computing the routes and switches.
+fn computeRoute(dir: direction, isFirst: bool, isLast: bool, notNeedsPos3: bool,
+    pattFirst: bool, pattLast: bool) comptime_struct {
+  if (isFirst) {
+    // The first PE only sends, never receives.
+    return .{
+      .routes= .{
+          .rx = .{ RAMP },
+          .tx = if (@is_arch("wse2")) .{ dir, RAMP } else .{ dir },
+      },
+      .switches=.{
+          .pos1 = .{ .tx = RAMP },
+          .ring_mode = true,
+          .pop_mode = .{ .always_pop = true },
+      }
+    };
+  }
+
+  if (pattern == 2) {
+    return twoPatternRoute(dir, pattFirst, pattLast, isLast);
+  }
+
+  return genericRoute(dir, notNeedsPos3, pattFirst, pattLast, isLast);
+}
+
+fn computeAllRoutes(xId: i16, yId: i16, width: i16, height: i16, pattern: i16) comptime_struct {
+  const westPeId = width - xId - 1;
+  const eastPeId = xId;
+  const northPeId = height - yId - 1;
+  const southPeId = yId;
+
+  const sendToSelfAdj = if (@is_arch("wse2")) 0 else 1;
+
+  const eastFirst = eastPeId == 0;
+  const eastLast = eastPeId == width - 1;
+  const eastPatternId = eastPeId % pattern;
+  const eastNotNeedsPos3 = eastPeId < pattern - 1;
+  const eastPatternFirst = eastPeId % pattern == 0;
+  const eastPatternLast = eastPeId % pattern == pattern - 1;
+  const eastSenderCount = math.min(pattern, eastPeId + 1) - sendToSelfAdj;
+
+  const westFirst = westPeId == 0;
+  const westLast = westPeId == width - 1;
+  const westPatternId = westPeId % pattern;
+  const westNotNeedsPos3 = westPeId < pattern - 1;
+  const westPatternFirst = westPeId % pattern == 0;
+  const westPatternLast = westPeId % pattern == pattern - 1;
+  const westSenderCount = math.min(pattern, westPeId + 1) - sendToSelfAdj;
+
+  const northFirst = northPeId == 0;
+  const northLast = northPeId == height - 1;
+  const northPatternId = northPeId % pattern;
+  const northNotNeedsPos3 = northPeId < pattern - 1;
+  const northPatternFirst = northPeId % pattern == 0;
+  const northPatternLast = northPeId % pattern == pattern - 1;
+  const northSenderCount = math.min(pattern, northPeId + 1) - sendToSelfAdj;
+
+  const southFirst = southPeId == 0;
+  const southLast = southPeId == height - 1;
+  const southPatternId = southPeId % pattern;
+  const southNotNeedsPos3 = southPeId < pattern - 1;
+  const southPatternFirst = southPeId % pattern == 0;
+  const southPatternLast = southPeId % pattern == pattern - 1;
+  const southSenderCount = math.min(pattern, southPeId + 1) - sendToSelfAdj;
+
+  const eastRoute = computeRoute(EAST, eastFirst, eastLast, eastNotNeedsPos3, eastPatternFirst, eastPatternLast);
+  const westRoute = computeRoute(WEST, westFirst, westLast, westNotNeedsPos3, westPatternFirst, westPatternLast);
+  const southRoute = computeRoute(SOUTH, southFirst, southLast, southNotNeedsPos3, southPatternFirst, southPatternLast);
+  const northRoute = computeRoute(NORTH, northFirst, northLast, northNotNeedsPos3, northPatternFirst, northPatternLast);
+
+  return .{
+    .eastRoute = eastRoute,
+    .westRoute = westRoute,
+    .southRoute = southRoute,
+    .northRoute = northRoute,
+    .eastPatternId = eastPatternId,
+    .westPatternId = westPatternId,
+    .southPatternId = southPatternId,
+    .northPatternId = northPatternId,
+    .eastSenderCount = eastSenderCount,
+    .westSenderCount = westSenderCount,
+    .southSenderCount = southSenderCount,
+    .northSenderCount = northSenderCount,
+  };
+}
